@@ -1,8 +1,11 @@
-import { S3Client } from '@aws-sdk/client-s3'
+import { S3 } from "aws-sdk"
+import { CentralDirectory, Open } from "unzipper"
+import * as fs from "fs";
+import * as path from "path";
 
-const getFile = async({ bucket, key, s3}) =>{
+const getFile = async({ bucket, key, s3}: { bucket: string, key: string, s3: S3 }) =>{
 
-    const s3File = await s3.getObject({ Bucket: bucket, Key: key })
+    const s3File = await Open.s3(s3, { Bucket: bucket, Key: key })
     
     const fileExtensionPath = key.split('/')
 
@@ -23,7 +26,19 @@ const getFile = async({ bucket, key, s3}) =>{
     console.log({file, s3File: s3File})
 
     return { fileName: file, file: s3File }
+}
 
+const decompression = async (file: CentralDirectory, pathToExtract: string, s3: S3, bucket: string) => {
+  await file.extract({ path: pathToExtract })
+
+  fs.accessSync(pathToExtract)
+
+  const dir = fs.opendirSync(pathToExtract)
+
+  for await (const file of dir) {
+    const read = fs.createReadStream(path.join(pathToExtract, file.name))
+    await s3.upload({ Key: path.join(pathToExtract, file.name), Bucket: bucket, Body: read }).promise()
+  }
 }
 
 const s3 = {
