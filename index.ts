@@ -1,3 +1,4 @@
+import fs from "fs"
 import S3 from "aws-sdk/clients/s3"
 import { s3 } from "./src/s3"
 
@@ -13,4 +14,12 @@ const createUploader = (s3Settings: { s3: S3, bucket: string, path?: string }) =
     const uploadPath = path.join(pathToExtract, zipName, file.name)
     await s3.upload({ Key: uploadPath, Bucket: bucket, Body: read }).promise()
   }
+}
+
+const getDirectoryToExtract = (pathToExtract?: string) => {
+  if (!pathToExtract) {
+    const tmpPath = fs.mkdtempSync(path.join(os.tmpdir(), 'unzipper-'))
+    return tmpPath
+  }
+  return pathToExtract
 }
