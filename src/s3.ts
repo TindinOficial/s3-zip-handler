@@ -2,54 +2,40 @@ import { S3 } from "aws-sdk"
 import { CentralDirectory, Open } from "unzipper"
 import * as fs from "fs"
 import * as path from "path"
-import os from 'node:os'
 
 const getFile = async({ bucket, key, s3}: { bucket: string, key: string, s3: S3 }) =>{
+  const s3File = await Open.s3(s3, { Bucket: bucket, Key: key })
 
-    const s3File = await Open.s3(s3, { Bucket: bucket, Key: key })
-
-    if(!s3File){
-      throw new Error('Bucker or key does not exists')
-    }
-    
-    const fileExtensionPath = key.split('/')
-
-
-    const fileWithExtension = fileExtensionPath[fileExtensionPath.length - 1]
-    
-    const fileSplitPath = fileWithExtension.split('.')
-    const possibleExtensions = ['zip', 'gzip', '7zip']
-    const fileExtension = fileSplitPath[fileSplitPath.length - 1]
-
-    if(!possibleExtensions.some(ext => ext === fileExtension)){
-        throw new Error('File must be .zip')
-    }
-
-    const [file] = fileSplitPath
-    
-
-    const fileToBeFolder = key.split('.')[0]
-
-    return { fileName: fileToBeFolder, file: s3File, fileZip: file}
-}
-
-const decompression = async (file: CentralDirectory, pathToExtract: string, s3: S3, bucket: string, fileZip: string) => {
-
-  const tmpPath = fs.mkdtempSync(path.join(os.tmpdir(), 'foo-'))
-  await file.extract({ path: tmpPath })
-
-  const tmpFolder = path.join(tmpPath, fileZip)
-  fs.accessSync(tmpFolder)
-  const dir = fs.opendirSync(tmpFolder)
-  
-
-  for await (const file of dir) {
-    const fileCreated = path.join(tmpFolder, file.name)
-    const read = fs.createReadStream(fileCreated)
-    await s3.upload({ Key: path.join(pathToExtract, file.name), Bucket: bucket, Body: read }).promise()
+  if(!s3File){
+    throw new Error('Bucker or key does not exists')
   }
 
-  fs.rmdirSync(tmpPath, {recursive: true, maxRetries: 5 })
+  const fileExtension = path.extname(path.basename(key))
+  const fileDirPath = path.dirname(key)
+
+  const possibleExtensions = ['.zip', '.gzip', '.7zip']
+  if(!possibleExtensions.some(ext => ext === fileExtension)){
+    throw new Error('File must be .zip')
+  }
+
+  const file = path.basename(key, fileExtension)
+
+  return { s3dirPath: fileDirPath, s3file: s3File, zipName: file}
+}
+
+const decompression = (decompressionSettings: { dir: string, uploader?: (pathDir: string, zipName: string) => Promise<void> }) => async (file: CentralDirectory, fileZip: string) => {
+  const {dir, uploader} = decompressionSettings
+  await file.extract({ path: dir })
+
+  const tmpFolder = path.join(dir, fileZip)
+  fs.accessSync(tmpFolder)
+
+  if (uploader) {
+    const uploadedPath = await uploader(tmpFolder, fileZip)
+    return { localPath: tmpFolder, uploadedPath }
+  }
+
+  return { localPath: tmpFolder  }
 }
 
 const s3 = {
