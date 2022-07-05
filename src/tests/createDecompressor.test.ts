@@ -1,4 +1,4 @@
-import { s3 } from '../s3'
+import { s3 } from '@/src/s3'
 import { CentralDirectory } from 'unzipper'
 import fs from 'fs'
 import * as path from 'path'
