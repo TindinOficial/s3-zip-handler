@@ -48,9 +48,9 @@ const s3Config = {
     key: 'your-s3-key/your-zip-file.zip'
 } 
 
-const { localPath } = await s3ZipHandler.decompressLocal(s3Config, 'your-home/extracted-files')
+const { localPath } = await s3ZipHandler.decompressLocal(s3Config, 'path-to-extract')
 
-// localPath = 'your-home/extracted-files/your-zip-file'
+// localPath = 'path-to-extract/your-zip-file'
  
 ```
 
