@@ -1,4 +1,4 @@
-import { s3 } from '@/src/s3'
+import { s3 } from '../s3'
 import AWS from 'aws-sdk'
 import fs, { Dir } from 'fs'
 import path from 'path'

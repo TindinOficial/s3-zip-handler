@@ -2,7 +2,7 @@ import path from 'path'
 import os from 'os'
 import fs from 'fs'
 import S3 from 'aws-sdk/clients/s3'
-import { s3 } from '@/src/s3'
+import { s3 } from './src/s3'
 
 const getDirectoryToExtract = (pathToExtract?: string) => {
   if (!pathToExtract) {
