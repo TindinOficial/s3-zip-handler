@@ -80,13 +80,14 @@ describe('unit: create uploader', () => {
 
     jest.spyOn(fs, 'createReadStream').mockImplementation((path) => ({ path }) as unknown as fs.ReadStream)
 
+    const bucket = 'any_bucket'
     const key = 'any_folder'
-    const uploader = await s3.createUploader({ s3: mockedS3, bucket: 'any_bucket', key })
+    const uploader = await s3.createUploader({ s3: mockedS3, bucket, key })
 
     const zipName = 'any_zip'
     const createdS3Path = await uploader(tmpFolderPath, zipName)
 
-    expect(createdS3Path).toBe(path.join(key, zipName))
+    expect(createdS3Path).toBe(path.join(bucket, key, zipName))
     expect(UPLOAD_BUFFER.length).toBe(1)
     const [buffer] = UPLOAD_BUFFER
     expect(buffer.Body.path).toBe(path.join(tmpFolderPath, 'folder_to_be_unzipped', 'my_file.html'))
@@ -108,12 +109,13 @@ describe('unit: create uploader', () => {
     jest.spyOn(path, 'join').mockImplementationOnce(() => 'any_valid_path/any_valid_file')
     jest.spyOn(fs, 'createReadStream').mockImplementation(() => ({ insideReadStream: true }) as unknown as fs.ReadStream)
 
+    const bucket = 'any_bucket'
     const key = 'any_folder'
-    const uploader = await s3.createUploader({ s3: mockedS3, bucket: 'any_bucket', key })
+    const uploader = await s3.createUploader({ s3: mockedS3, bucket, key })
 
     const zipName = 'any_zip'
     const createdS3Path = await uploader('any_folder', zipName)
 
-    expect(createdS3Path).toBe(path.join(key, zipName))
+    expect(createdS3Path).toBe(path.join(bucket, key, zipName))
   })
 })

@@ -57,7 +57,7 @@ const createUploader = (s3Settings: { s3: S3, bucket: string, key?: string }) =>
       await s3.upload({ Key: uploadPath, Bucket: bucket, Body: read }).promise()
     }
 
-    const createdS3Path = path.join(pathToExtract, zipName)
+    const createdS3Path = path.join(bucket, pathToExtract, zipName)
 
     return createdS3Path
   }
