@@ -10,10 +10,6 @@
     "moduleResolution": "node",
     "baseUrl": ".",
     "declaration": true,
-    "paths": {
-      "@/package": ["package.json"],
-      "@/src/*": ["src/*"]
-    }
   },
   "include": [
     "src/**/*",
