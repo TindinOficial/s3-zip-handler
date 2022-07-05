@@ -6,7 +6,7 @@ import { s3 } from '@/src/s3'
 
 const getDirectoryToExtract = (pathToExtract?: string) => {
   if (!pathToExtract) {
-    const tmpPath = fs.mkdtempSync(path.join(os.tmpdir(), 'unzipper-'))
+    const tmpPath = fs.mkdtempSync(path.join(os.tmpdir(), 'unzipped-'))
     return tmpPath
   }
   return pathToExtract
@@ -25,7 +25,9 @@ const decompressLocal = async (zipFile: IS3ZipFileParams, pathToExtract?: string
 
   const { s3file, zipName } = await s3.getFile({ bucket, key, s3: s3Client })
 
-  await decompressor(s3file, zipName)
+  const { localPath } = await decompressor(s3file, zipName)
+
+  return localPath
 }
 
 const decompressToKeyFolderS3 = async (zipFile: IS3ZipFileParams) => {
