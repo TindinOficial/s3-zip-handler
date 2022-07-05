@@ -39,24 +39,31 @@ const createDecompressor = (decompressionSettings: { dir: string, uploader?: (pa
     return { localPath: tmpFolder }
   }
 
-const createUploader = (s3Settings: { s3: S3, bucket: string, key?: string }) => async (pathDir: string, zipName: string) => {
+const createUploader = (s3Settings: { s3: S3, bucket: string, key?: string }) => {
   const { s3, bucket, key: pathReceived } = s3Settings
   const pathToExtract = pathReceived ?? ''
-  const dir = fs.opendirSync(pathDir)
+  const uploader = async (pathDir: string, zipName: string) => {
+    const dir = fs.opendirSync(pathDir)
 
-  for await (const file of dir) {
-    const fileCreated = path.join(pathDir, file.name)
-    const read = fs.createReadStream(fileCreated)
+    for await (const file of dir) {
+      const fileCreated = path.join(pathDir, file.name)
+      if (file.isDirectory()) {
+        await uploader(fileCreated, path.join(zipName, file.name))
+        continue
+      }
+      const read = fs.createReadStream(fileCreated)
 
-    const uploadPath = path.join(pathToExtract, zipName, file.name)
-    await s3.upload({ Key: uploadPath, Bucket: bucket, Body: read }).promise()
+      const uploadPath = path.join(pathToExtract, zipName, file.name)
+      await s3.upload({ Key: uploadPath, Bucket: bucket, Body: read }).promise()
+    }
+
+    const createdS3Path = path.join(pathToExtract, zipName)
+
+    return createdS3Path
   }
 
-  const createdS3Path = path.join(pathToExtract, zipName)
-
-  return createdS3Path
+  return uploader
 }
-
 const s3 = {
   getFile,
   createDecompressor,
