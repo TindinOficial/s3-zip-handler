@@ -1,9 +1,12 @@
 {
   "name": "s3-zip-handler",
   "version": "1.0.0",
-  "description": "",
+  "description": "extract a zip file provided from your AWS s3 bucket to any other place",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TindinOficial/s3-zip-handler.git"},
   "scripts": {
     "lint": "eslint .",
     "test": "jest --passWithNoTests --maxWorkers=50%",
@@ -17,7 +20,17 @@
     "version" : "git add -A src",
     "postversion" : "git push && git push --tags"
   },
-  "keywords": [],
+  "keywords": [
+    "s3",
+    "zip",
+    "unzip",
+    "unzipper",
+    "decompress",
+    "unzip-s3",
+    "s3-zip",
+    "s3-unzipper",
+    "s3-unzip"
+  ],
   "author": "Tindin",
   "license": "ISC",
   "devDependencies": {
