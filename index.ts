@@ -43,8 +43,12 @@ const decompressToKeyFolderS3 = async (zipFile: IS3ZipFileParams) => {
   return { localPath, uploadedPath }
 }
 
-export {
+const s3ZipHandler = {
   decompressLocal,
-  decompressToKeyFolderS3,
-  IS3ZipFileParams
+  decompressToKeyFolderS3
+
 }
+
+export { IS3ZipFileParams }
+
+export default s3ZipHandler

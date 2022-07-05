@@ -2,16 +2,23 @@
   "name": "s3-zip-handler",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
+    "lint": "eslint .",
     "test": "jest --passWithNoTests --maxWorkers=50%",
     "test:watch": "npm test -- --watch ",
     "test:staged": "npm test --",
     "test:coverage": "npm test -- --coverage",
-    "start": "ts-node index.ts"
+    "build": "tsc",
+    "prepare" : "npm run build",
+    "prepublishOnly" : "npm test && npm run lint",
+    "preversion": "npm run lint",
+    "version" : "git add -A src",
+    "postversion" : "git push && git push --tags"
   },
   "keywords": [],
-  "author": "",
+  "author": "Tindin",
   "license": "ISC",
   "devDependencies": {
     "@types/jest": "^28.1.3",
