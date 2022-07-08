@@ -1,6 +1,6 @@
 {
   "name": "s3-zip-handler",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "extract a zip file provided from your AWS s3 bucket to any other place",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
