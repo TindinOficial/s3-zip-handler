@@ -26,9 +26,10 @@ const getFile = async ({ bucket, key, s3 }: { bucket: string, key: string, s3: S
 const createDecompressor = (decompressionSettings: { dir: string, uploader?: (pathDir: string, zipName: string) => Promise<string> }) =>
   async (file: CentralDirectory, fileZip: string) => {
     const { dir, uploader } = decompressionSettings
-    await file?.extract({ path: dir })
 
-    const tmpFolder = path.join(dir, fileZip)
+    await file?.extract({ path: dir })
+    const tmpFolder = path.join(dir, file.files[0].path)
+
     fs.accessSync(tmpFolder)
 
     if (uploader) {
