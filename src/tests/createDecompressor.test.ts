@@ -1,7 +1,7 @@
 import { s3 } from '../s3'
 import { CentralDirectory } from 'unzipper'
 import fs from 'fs'
-import * as path from 'path'
+import path from 'path'
 
 describe('unit: decompress file', () => {
   afterEach(() => {
@@ -50,9 +50,11 @@ describe('unit: decompress file', () => {
       extract: () => { }
     } as unknown as CentralDirectory
 
-    jest.spyOn(centralDirectory, 'extract').mockResolvedValueOnce()
+    jest.spyOn(centralDirectory, 'extract').mockImplementationOnce(() => Promise.resolve({ file: { files: [{ path: 'ue' }] } }) as any)
 
     jest.spyOn(fs, 'accessSync').mockReturnValueOnce(undefined)
+
+    jest.spyOn(path, 'join').mockReturnValue('any_dir_from_folder')
 
     const dir = 'tmp'
     const zipFilePath = 'any_dir_from_folder'

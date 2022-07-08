@@ -28,7 +28,10 @@ const createDecompressor = (decompressionSettings: { dir: string, uploader?: (pa
     const { dir, uploader } = decompressionSettings
 
     await file?.extract({ path: dir })
-    const tmpFolder = path.join(dir, file.files[0].path)
+
+    const filePath = file?.files?.length ? file.files[0].path : ''
+
+    const tmpFolder = path.join(dir, filePath)
 
     fs.accessSync(tmpFolder)
 
