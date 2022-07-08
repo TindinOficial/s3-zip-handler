@@ -2,6 +2,7 @@ import { S3 } from 'aws-sdk'
 import { CentralDirectory, Open } from 'unzipper'
 import * as fs from 'fs'
 import * as path from 'path'
+import mime from 'mime-types'
 
 const getFile = async ({ bucket, key, s3 }: { bucket: string, key: string, s3: S3 }) => {
   const s3File = await Open.s3(s3, { Bucket: bucket, Key: key })
@@ -58,7 +59,8 @@ const createUploader = (s3Settings: { s3: S3, bucket: string, key?: string, para
       const read = fs.createReadStream(fileCreated)
 
       const uploadPath = path.join(pathToExtract, zipName, file.name)
-      await s3.upload({ Key: uploadPath, Bucket: bucket, Body: read, ...params }).promise()
+      const contentType = mime.lookup(file.name) || 'application/octet-stream'
+      await s3.upload({ Key: uploadPath, Bucket: bucket, Body: read, ...params, ContentType: contentType }).promise()
     }
 
     const createdS3Path = path.join(bucket, pathToExtract, zipName)
