@@ -15,7 +15,8 @@ const getDirectoryToExtract = (pathToExtract?: string) => {
 interface IS3ZipFileParams {
   s3Client: S3
   bucket: string
-  key: string
+  key: string,
+  params?: {ACL?: string, ContentDisposition?: string}
 }
 
 const decompressLocal = async (zipFile: IS3ZipFileParams, pathToExtract?: string) => {
@@ -31,11 +32,11 @@ const decompressLocal = async (zipFile: IS3ZipFileParams, pathToExtract?: string
 }
 
 const decompressToKeyFolderS3 = async (zipFile: IS3ZipFileParams) => {
-  const { s3Client, bucket, key } = zipFile
+  const { s3Client, bucket, key, params } = zipFile
 
   const dirToExtract = getDirectoryToExtract()
   const dirToUpload = path.dirname(key)
-  const uploader = s3.createUploader({ s3: s3Client, bucket, key: dirToUpload })
+  const uploader = s3.createUploader({ s3: s3Client, bucket, key: dirToUpload, params })
   const decompressor = s3.createDecompressor({ dir: dirToExtract, uploader })
 
   const { s3file, zipName } = await s3.getFile({ bucket, key, s3: s3Client })
