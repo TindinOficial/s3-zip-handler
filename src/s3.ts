@@ -28,11 +28,9 @@ const createDecompressor = (decompressionSettings: { dir: string, uploader?: (pa
   async (file: CentralDirectory, fileZip: string) => {
     const { dir, uploader } = decompressionSettings
 
-    await file?.extract({ path: dir })
+    await file?.extract({ path: path.join(dir, fileZip) })
 
-    const filePath = file?.files?.length ? file.files[0].path : ''
-
-    const tmpFolder = path.join(dir, filePath)
+    const tmpFolder = path.join(dir, fileZip)
 
     fs.accessSync(tmpFolder)
 
