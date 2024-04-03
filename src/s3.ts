@@ -1,10 +1,25 @@
-import { S3 } from 'aws-sdk'
+import { PutObjectCommandInput, S3 } from '@aws-sdk/client-s3'
+import { Upload } from '@aws-sdk/lib-storage'
 import { CentralDirectory, Open } from 'unzipper'
 import * as fs from 'fs'
 import * as path from 'path'
 import mime from 'mime-types'
 
-const getFile = async ({ bucket, key, s3 }: { bucket: string, key: string, s3: S3 }) => {
+interface IGetFileInput {
+  bucket: string,
+  key: string,
+  s3: S3
+}
+
+interface IGetFileOutput {
+  s3dirPath: string;
+  s3file: CentralDirectory;
+  zipName: string;
+}
+
+const getFile = async (input: IGetFileInput): Promise<IGetFileOutput> => {
+  const { bucket, key, s3 } = input
+
   const s3File = await Open.s3(s3, { Bucket: bucket, Key: key })
 
   if (!s3File) {
@@ -24,9 +39,21 @@ const getFile = async ({ bucket, key, s3 }: { bucket: string, key: string, s3: S
   return { s3dirPath: fileDirPath, s3file: s3File, zipName: file }
 }
 
-const createDecompressor = (decompressionSettings: { dir: string, uploader?: (pathDir: string, zipName: string) => Promise<string> }) =>
+interface ICreateDecompressorInput {
+  dir: string,
+  uploader?: (pathDir: string, zipName: string) => Promise<string>
+}
+
+interface IDecompressorOutput {
+  localPath: string
+  uploadedPath?: string
+}
+
+type CreateDecompressorOutput = (file: CentralDirectory, fileZip: string) => Promise<IDecompressorOutput>
+
+const createDecompressor = (input: ICreateDecompressorInput): CreateDecompressorOutput =>
   async (file: CentralDirectory, fileZip: string) => {
-    const { dir, uploader } = decompressionSettings
+    const { dir, uploader } = input
 
     await file?.extract({ path: path.join(dir, fileZip) })
 
@@ -42,9 +69,20 @@ const createDecompressor = (decompressionSettings: { dir: string, uploader?: (pa
     return { localPath: tmpFolder }
   }
 
-const createUploader = (s3Settings: { s3: S3, bucket: string, key?: string, params?: {ACL?: string, ContentDisposition?: string} }) => {
-  const { s3, bucket, key: pathReceived, params } = s3Settings
+interface ICreateUploaderInput {
+  s3: S3
+  bucket: string
+  key?: string
+  params?: Pick<PutObjectCommandInput, 'ACL' | 'ContentDisposition'>
+}
+
+type UploaderOutput = string
+type CreateUploaderOutput = (pathDir: string, zipName: string) => Promise<UploaderOutput>
+
+const createUploader = (input: ICreateUploaderInput): CreateUploaderOutput => {
+  const { s3, bucket, key: pathReceived, params } = input
   const pathToExtract = pathReceived ?? ''
+
   const uploader = async (pathDir: string, zipName: string) => {
     const dir = fs.opendirSync(pathDir)
 
@@ -58,7 +96,19 @@ const createUploader = (s3Settings: { s3: S3, bucket: string, key?: string, para
 
       const uploadPath = path.join(pathToExtract, zipName, file.name)
       const contentType = mime.lookup(file.name) || 'application/octet-stream'
-      await s3.upload({ Key: uploadPath, Bucket: bucket, Body: read, ...params, ContentType: contentType }).promise()
+
+      const newUpload = new Upload({
+        client: s3,
+        params: {
+          Key: uploadPath,
+          Bucket: bucket,
+          Body: read,
+          ...params,
+          ContentType: contentType
+        }
+      })
+
+      newUpload.done()
     }
 
     const createdS3Path = path.join(bucket, pathToExtract, zipName)
