@@ -11,7 +11,7 @@ S3 zip handler
 ## Basic usage: 
 
 ### 1. Start by declaring your S3 client:
-#### [**We highly recommend aws-sdk-v3 usage: [read more]**](https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/welcome.html#welcome_whats_new_v3)
+#### [**We highly recommend aws-sdk-v3 usage**](https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/welcome.html#welcome_whats_new_v3)
 
 - **to AWS-SDK-V3 users it should be something like:**
 ```typescript
