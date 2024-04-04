@@ -8,10 +8,14 @@ interface IGetFileInput {
   s3: S3Client
 }
 
+interface IZipFile {
+  stream: Readable
+  name: string
+  extension: string
+}
+
 interface IGetFileOutput {
-  s3dirPath: string;
-  s3file: Readable;
-  zipName: string;
+  zip: IZipFile
 }
 
 type Uploader = (files: File[], dir: string, zipName: string) => Promise<string>
@@ -26,7 +30,7 @@ interface IDecompressorOutput {
   uploadedPath?: string
 }
 
-type CreateDecompressorOutput = (zipFile: Readable, fileName: string) => Promise<IDecompressorOutput>
+type CreateDecompressorOutput = (file: IZipFile) => Promise<IDecompressorOutput>
 
 interface ICreateUploaderInput {
   s3: S3Client
@@ -42,5 +46,6 @@ export {
   IDecompressorOutput,
   ICreateUploaderInput,
   CreateDecompressorOutput,
-  Uploader
+  Uploader,
+  IZipFile
 }

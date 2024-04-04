@@ -11,7 +11,8 @@ import {
   ICreateDecompressorInput,
   ICreateUploaderInput,
   CreateDecompressorOutput,
-  Uploader
+  Uploader,
+  IZipFile
 } from './types/s3'
 
 const getZipFile = async (input: IGetFileInput): Promise<IGetFileOutput> => {
@@ -25,10 +26,9 @@ const getZipFile = async (input: IGetFileInput): Promise<IGetFileOutput> => {
   )).Body as Readable
 
   if (!readableStream) {
-    throw new Error('Bucker or key does not exists')
+    throw new Error('Bucket or key does not exists')
   }
 
-  const fileDirPath = path.dirname(key)
   const fileExtension = path.extname(path.basename(key))
 
   const possibleExtensions = ['.zip', '.gzip', '.7zip']
@@ -36,38 +36,48 @@ const getZipFile = async (input: IGetFileInput): Promise<IGetFileOutput> => {
     throw new Error('File must be .zip')
   }
 
-  const file = path.basename(key, fileExtension)
+  const zip = {
+    name: path.basename(key, fileExtension),
+    stream: readableStream,
+    extension: fileExtension
+  }
 
-  return { s3dirPath: fileDirPath, s3file: readableStream, zipName: file }
+  return {
+    zip
+  }
 }
 
 interface IDecompressZipFilesInput {
-  zipFile: Readable
-  fileName: string
+  zip: IZipFile,
   dir: string
 }
 const decompressZipFiles = async (input: IDecompressZipFilesInput) => {
-  const { zipFile, fileName, dir } = input
+  const { zip, dir } = input
 
-  const tmpFolder = path.join(dir, fileName)
-  const localFileStream = fs.createWriteStream(tmpFolder)
+  const zipFilePath = path.join(dir, (zip.name + zip.extension))
 
-  zipFile.pipe(localFileStream)
-  fs.accessSync(tmpFolder)
+  const localFileStream = fs.createWriteStream(zipFilePath)
 
-  const files = await decompress(tmpFolder, dir)
+  zip.stream.pipe(localFileStream)
+  fs.accessSync(zipFilePath)
+
+  const tmpFolder = path.join(dir, zip.name)
+
+  const files = await decompress(zipFilePath, tmpFolder)
+
+  fs.unlinkSync(zipFilePath)
 
   return { files, tmpFolder }
 }
 
 const createDecompressor = (input: ICreateDecompressorInput): CreateDecompressorOutput =>
-  async (zipFile: Readable, fileName: string) => {
+  async (zip: IZipFile) => {
     const { dir, uploader } = input
 
-    const { files, tmpFolder } = await decompressZipFiles({ zipFile, fileName, dir })
+    const { files, tmpFolder } = await decompressZipFiles({ zip, dir })
 
     if (uploader) {
-      const uploadedPath = await uploader(files, dir, fileName)
+      const uploadedPath = await uploader(files, dir, zip.name)
 
       return { localPath: tmpFolder, uploadedPath }
     }
