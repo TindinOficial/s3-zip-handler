@@ -1,8 +1,8 @@
-import path from 'path'
-import os from 'os'
-import fs from 'fs'
-import { PutObjectCommandInput, S3 } from '@aws-sdk/client-s3'
+import { PutObjectCommandInput, S3Client } from '@aws-sdk/client-s3'
 import { s3 } from './src/s3'
+import path from 'path'
+import fs from 'fs'
+import os from 'os'
 
 const getDirectoryToExtract = (pathToExtract?: string) => {
   if (!pathToExtract) {
@@ -13,20 +13,18 @@ const getDirectoryToExtract = (pathToExtract?: string) => {
 }
 
 interface IS3ZipFileParams {
-  s3Client: S3
+  s3Client: S3Client
   bucket: string
   key: string,
   params?: Pick<PutObjectCommandInput, 'ACL' | 'ContentDisposition'>
 }
 
-type DecompressLocalOutputType = string
-
-const decompressLocal = async (zipFile: IS3ZipFileParams, pathToExtract?: string): Promise<DecompressLocalOutputType> => {
+const decompressLocal = async (zipFile: IS3ZipFileParams, pathToExtract?: string): Promise<string> => {
   const { s3Client, bucket, key } = zipFile
   const dirToExtract = getDirectoryToExtract(pathToExtract)
   const decompressor = s3.createDecompressor({ dir: dirToExtract })
 
-  const { s3file, zipName } = await s3.getFile({ bucket, key, s3: s3Client })
+  const { s3file, zipName } = await s3.getZipFile({ bucket, key, s3: s3Client })
 
   const { localPath } = await decompressor(s3file, zipName)
 
@@ -35,7 +33,7 @@ const decompressLocal = async (zipFile: IS3ZipFileParams, pathToExtract?: string
 
 interface IDecompressToKeyFolderS3Output {
   localPath: string;
-  uploadedPath: string | undefined;
+  uploadedPath?: string;
 }
 
 const decompressToKeyFolderS3 = async (zipFile: IS3ZipFileParams): Promise<IDecompressToKeyFolderS3Output> => {
@@ -46,7 +44,7 @@ const decompressToKeyFolderS3 = async (zipFile: IS3ZipFileParams): Promise<IDeco
   const uploader = s3.createUploader({ s3: s3Client, bucket, key: dirToUpload, params })
   const decompressor = s3.createDecompressor({ dir: dirToExtract, uploader })
 
-  const { s3file, zipName } = await s3.getFile({ bucket, key, s3: s3Client })
+  const { s3file, zipName } = await s3.getZipFile({ bucket, key, s3: s3Client })
 
   const { localPath, uploadedPath } = await decompressor(s3file, zipName)
 
@@ -58,6 +56,6 @@ const s3ZipHandler = {
   decompressToKeyFolderS3
 }
 
-export { IS3ZipFileParams, IDecompressToKeyFolderS3Output, DecompressLocalOutputType }
+export { IS3ZipFileParams, IDecompressToKeyFolderS3Output }
 
 export default s3ZipHandler
