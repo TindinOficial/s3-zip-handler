@@ -1,5 +1,4 @@
 import { PutObjectCommandInput, S3Client } from '@aws-sdk/client-s3'
-import { File } from 'decompress'
 import { Readable } from 'stream'
 
 interface IGetFileInput {
@@ -18,10 +17,10 @@ interface IGetFileOutput {
   zip: IZipFile
 }
 
-type Uploader = (files: File[], dir: string, zipName: string) => Promise<string>
+type Uploader = (tmpFolder: string, zipName: string) => Promise<string>
 
 interface ICreateDecompressorInput {
-  dir: string,
+  dirToExtract: string,
   uploader?: Uploader
 }
 

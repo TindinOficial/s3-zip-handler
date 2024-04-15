@@ -57,7 +57,9 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.540.0",
     "@aws-sdk/lib-storage": "^3.540.0",
-    "mime-types": "^2.1.35",
-    "decompress": "^4.2.1"
+    "@smithy/util-stream": "^2.2.0",
+    "aws-sdk-client-mock": "^4.0.0",
+    "decompress": "^4.2.1",
+    "mime-types": "^2.1.35"
   }
 }

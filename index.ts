@@ -22,7 +22,7 @@ interface IS3ZipHandlerInput {
 const decompressLocal = async (input: IS3ZipHandlerInput, pathToExtract?: string): Promise<string> => {
   const { s3Client, bucket, key } = input
   const dirToExtract = getDirectoryToExtract(pathToExtract)
-  const decompressor = s3.createDecompressor({ dir: dirToExtract })
+  const decompressor = s3.createDecompressor({ dirToExtract })
 
   const { zip } = await s3.getZipFile({ bucket, key, s3: s3Client })
 
@@ -42,7 +42,7 @@ const decompressToKeyFolderS3 = async (input: IS3ZipHandlerInput): Promise<IDeco
   const dirToExtract = getDirectoryToExtract()
   const dirToUpload = path.dirname(key)
   const uploader = s3.createUploader({ s3: s3Client, bucket, key: dirToUpload, params })
-  const decompressor = s3.createDecompressor({ dir: dirToExtract, uploader })
+  const decompressor = s3.createDecompressor({ dirToExtract, uploader })
 
   const { zip } = await s3.getZipFile({ bucket, key, s3: s3Client })
 

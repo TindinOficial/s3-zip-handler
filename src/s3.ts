@@ -1,6 +1,6 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { Upload } from '@aws-sdk/lib-storage'
-import decompress, { File } from 'decompress'
+import decompress from 'decompress'
 import { Readable } from 'stream'
 import mime from 'mime-types'
 import * as path from 'path'
@@ -49,35 +49,39 @@ const getZipFile = async (input: IGetFileInput): Promise<IGetFileOutput> => {
 
 interface IDecompressZipFilesInput {
   zip: IZipFile,
-  dir: string
+  dirToExtract: string
 }
 const decompressZipFiles = async (input: IDecompressZipFilesInput) => {
-  const { zip, dir } = input
+  const { zip, dirToExtract } = input
 
-  const zipFilePath = path.join(dir, (zip.name + zip.extension))
+  const zipFilePath = path.join(dirToExtract, (zip.name + zip.extension))
 
-  const localFileStream = fs.createWriteStream(zipFilePath)
+  await (
+    new Promise(resolve => {
+      const localFileStream = fs.createWriteStream(zipFilePath)
+      zip.stream.pipe(localFileStream)
+      localFileStream.on('finish', resolve)
+    })
+  )
 
-  zip.stream.pipe(localFileStream)
   fs.accessSync(zipFilePath)
 
-  const tmpFolder = path.join(dir, zip.name)
-
-  const files = await decompress(zipFilePath, tmpFolder)
+  const tmpFolder = path.join(dirToExtract, zip.name)
+  await decompress(zipFilePath, tmpFolder)
 
   fs.unlinkSync(zipFilePath)
 
-  return { files, tmpFolder }
+  return { tmpFolder }
 }
 
 const createDecompressor = (input: ICreateDecompressorInput): CreateDecompressorOutput =>
   async (zip: IZipFile) => {
-    const { dir, uploader } = input
+    const { dirToExtract, uploader } = input
 
-    const { files, tmpFolder } = await decompressZipFiles({ zip, dir })
+    const { tmpFolder } = await decompressZipFiles({ zip, dirToExtract })
 
     if (uploader) {
-      const uploadedPath = await uploader(files, dir, zip.name)
+      const uploadedPath = await uploader(tmpFolder, zip.name)
 
       return { localPath: tmpFolder, uploadedPath }
     }
@@ -89,28 +93,35 @@ const createUploader = (input: ICreateUploaderInput): Uploader => {
   const { s3, bucket, key: pathReceived } = input
   const pathToExtract = pathReceived ?? ''
 
-  const uploader = async (files: File[], dir: string, zipName: string) => {
-    for await (const file of files) {
-      const filePath = file.path.replace(dir, '')
+  const uploader = async (dirPath: string, dirName: string) => {
+    const dir = fs.opendirSync(dirPath)
 
-      const contentType = mime.lookup(filePath) || 'application/octet-stream'
+    for await (const file of dir) {
+      const fileCreated = path.join(dirPath, file.name)
 
-      const uploadPath = path.join(pathToExtract, zipName, filePath)
+      if (file.isDirectory()) {
+        await uploader(fileCreated, path.join(dirName, file.name))
+        continue
+      }
+
+      const fileStream = fs.createReadStream(fileCreated)
+      const uploadPath = path.join(pathToExtract, dirName, file.name)
+      const contentType = mime.lookup(file.name) || 'application/octet-stream'
 
       const newUpload = new Upload({
         client: s3,
         params: {
           Bucket: bucket,
           Key: uploadPath,
-          Body: file.data,
+          Body: fileStream,
           ContentType: contentType
         }
       })
 
-      newUpload.done()
+      await newUpload.done()
     }
 
-    const createdS3Path = path.join(bucket, pathToExtract, zipName)
+    const createdS3Path = path.join(bucket, pathToExtract, dirName)
 
     return createdS3Path
   }
