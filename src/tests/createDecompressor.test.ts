@@ -1,68 +1,90 @@
 import { s3 } from '../s3'
-import { CentralDirectory } from 'unzipper'
 import fs from 'fs'
 import path from 'path'
+import { Readable, Writable } from 'stream'
+
+jest.mock('decompress')
+
+const mockReadStream = (path?) => {
+  const read = new Readable()
+  read.push('mocked')
+  read.push(null)
+  read.on('data', (chunk) => { if (chunk) chunk.path = path })
+  read.on('close', () => {})
+  read.pipe = (d) => d
+
+  return read as unknown as fs.ReadStream
+}
+
+const mockWritableStream = () => {
+  const writable = new Writable()
+  writable.end()
+  return writable as unknown as fs.WriteStream
+}
+
+const DEFAULT_FILE_STREAM = { name: 'mockedFile', extension: '.any' }
+
+const mockFileStream = ({ name, extension } = DEFAULT_FILE_STREAM) => {
+  try {
+    const mockedStream = mockReadStream()
+    return {
+      stream: mockedStream,
+      name,
+      extension
+    }
+  } catch (err) {
+    throw new Error(err)
+  }
+}
 
 describe('unit: decompress file', () => {
   afterEach(() => {
     jest.resetAllMocks()
   })
-  it('should reject when file to be extracted provided cant be extracted for any reason', async () => {
-    jest.spyOn(fs, 'accessSync').mockImplementationOnce(() => {
-      throw new Error()
-    })
-    const centralDirectory = {
-      extract: () => { }
-    } as unknown as CentralDirectory
-
-    jest.spyOn(centralDirectory, 'extract').mockImplementationOnce(() => {
-      throw new Error()
-    })
-
-    try {
-      const decompress = s3.createDecompressor({ dir: 'any_dir' })
-      await decompress(centralDirectory, 'any_dir')
-    } catch (err) {
-      expect(err).toBeDefined()
-    }
-  })
 
   it('should reject when user os has no permission to handle the tmp folder created', async () => {
-    const centralDirectory = {
-      extract: () => { }
-    } as unknown as CentralDirectory
+    const mockedMessage = 'cannot access file'
 
-    jest.spyOn(centralDirectory, 'extract').mockReturnValueOnce(Promise.resolve())
-
+    jest.spyOn(fs, 'createWriteStream').mockImplementationOnce(() => mockWritableStream())
+    jest.spyOn(fs, 'unlinkSync').mockImplementationOnce(() => {})
     jest.spyOn(fs, 'accessSync').mockImplementationOnce(() => {
-      throw new Error()
+      throw new Error(mockedMessage)
     })
 
+    const zipMocked = mockFileStream()
+
+    let expectedError: any
+
     try {
-      const decompress = s3.createDecompressor({ dir: 'any_dir' })
-      await decompress(centralDirectory, 'any_dir')
+      const decompressor = s3.createDecompressor({ dirToExtract: 'any_dir' })
+
+      await decompressor(zipMocked)
     } catch (err) {
-      expect(err).toBeDefined()
+      expectedError = err.message
     }
+
+    expect(expectedError).toBe(mockedMessage)
   })
+
   it('should resolve and return localPath when all data provided and all os permissions are valid', async () => {
-    const centralDirectory = {
-      extract: () => { }
-    } as unknown as CentralDirectory
-
-    jest.spyOn(centralDirectory, 'extract').mockImplementationOnce(() => Promise.resolve({ file: { files: [{ path: 'ue' }] } }) as any)
-
-    jest.spyOn(fs, 'accessSync').mockReturnValueOnce(undefined)
-
+    jest.spyOn(fs, 'createWriteStream').mockImplementationOnce(() => mockWritableStream())
     jest.spyOn(path, 'join').mockReturnValue('any_dir_from_folder')
+    jest.spyOn(fs, 'accessSync').mockImplementationOnce(() => {})
+    jest.spyOn(fs, 'unlinkSync').mockImplementationOnce(() => {})
 
-    const dir = 'tmp'
+    const dirToExtract = 'tmp'
     const zipFilePath = 'any_dir_from_folder'
 
-    const decompress = s3.createDecompressor({ dir })
-    const { localPath } = await decompress(centralDirectory, zipFilePath)
+    const decompressor = s3.createDecompressor({ dirToExtract })
+    const zipMocked = mockFileStream({
+      name: 'any_zip',
+      extension: '.zip'
+    })
 
-    const expectedPath = path.join(dir, zipFilePath)
+    const { localPath } = await decompressor(zipMocked)
+
+    const expectedPath = path.join(dirToExtract, zipFilePath)
+
     expect(localPath).toBe(expectedPath)
   })
 })

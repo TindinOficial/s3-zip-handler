@@ -1,23 +1,40 @@
-import { s3 } from '../s3'
-import AWS from 'aws-sdk'
+import { Readable } from 'stream'
 import fs, { Dir } from 'fs'
 import path from 'path'
-import S3 from 'aws-sdk/clients/s3'
-import os from 'node:os'
+import os from 'os'
+import { mockClient } from 'aws-sdk-client-mock'
+import {
+  S3Client, CreateMultipartUploadCommand, UploadPartCommand,
+  CompleteMultipartUploadCommand, PutObjectCommand
+} from '@aws-sdk/client-s3'
+import { s3 } from '../s3'
 
-jest.mock('aws-sdk')
-const AWS_MOCK = jest.mocked(AWS, true)
+const mockReadStream = (path?) => {
+  const read = new Readable()
+  read.push('mocked')
+  read.push(null)
+  read.on('data', (chunk) => { if (chunk) chunk.path = path })
+
+  return read as unknown as fs.ReadStream
+}
 
 describe('unit: create uploader', () => {
+  const AWS_S3_MOCK = mockClient(S3Client)
+  const instantiateMockedS3Client = () => new S3Client({ region: 'any' })
+
+  beforeEach(() => {
+    AWS_S3_MOCK.on(CreateMultipartUploadCommand).resolves({ UploadId: '1' })
+    AWS_S3_MOCK.on(UploadPartCommand).resolves({ ETag: '1' })
+    AWS_S3_MOCK.on(PutObjectCommand).resolves({ ETag: '1' })
+    AWS_S3_MOCK.on(CompleteMultipartUploadCommand).resolves({ ETag: '1' })
+  })
+
   afterAll(() => {
     jest.resetAllMocks()
   })
+
   it('should reject when createReadStream fails', async () => {
-    AWS_MOCK.S3.mockImplementationOnce(() => ({
-      upload: jest.fn().mockReturnThis(),
-      promise: jest.fn()
-    }) as unknown as S3)
-    const mockedS3 = new AWS_MOCK.S3() as any
+    const mockedS3 = instantiateMockedS3Client()
 
     jest.spyOn(fs, 'opendirSync').mockImplementationOnce(() =>
       [{ name: 'any_file.html', isDirectory: () => false },
@@ -28,86 +45,112 @@ describe('unit: create uploader', () => {
       throw new Error('createReadStream fails')
     })
 
-    const uploader = await s3.createUploader({ s3: mockedS3, bucket: 'any_bucket', key: 'some_path' })
+    const uploader = await s3.createUploader({
+      s3: mockedS3,
+      bucket: 'any_bucket',
+      key: 'some_path'
+    })
+
+    let errorFound: any
+
     try {
       await uploader('any_folder', 'any_zip')
     } catch (err) {
-      expect(err).toBeDefined()
-      expect(err.message).toBe('createReadStream fails')
+      errorFound = err
     }
+
+    expect(errorFound).toBeDefined()
+    expect(errorFound.message).toBe('createReadStream fails')
   })
 
   it('should reject when s3 upload fails', async () => {
+    const mockedErrorMessage = 'Oops... something went wrong'
+
     jest.spyOn(fs, 'opendirSync').mockImplementationOnce(() =>
-      [{ name: 'any_file.html', isDirectory: () => false },
-        { name: 'any_file.css', isDirectory: () => false }] as unknown as Dir)
+      [
+        { name: 'any_file.html', isDirectory: () => false },
+        { name: 'any_file.css', isDirectory: () => false }
+      ] as unknown as Dir
+    )
+
     jest.spyOn(path, 'join').mockImplementationOnce(() => 'any_valid_path/any_valid_file')
-    jest.spyOn(fs, 'createReadStream').mockImplementationOnce(() => ({ insideReadStream: true }) as unknown as fs.ReadStream)
 
-    AWS_MOCK.S3.mockImplementationOnce(() => ({
-      upload: jest.fn().mockReturnThis(),
-      promise: jest.fn(() => {
-        throw new Error('s3 upload fails')
-      })
-    }) as unknown as S3)
-    const mockedS3 = new AWS_MOCK.S3() as any
+    jest.spyOn(fs, 'createReadStream').mockImplementationOnce(() => mockReadStream())
 
-    const uploader = await s3.createUploader({ s3: mockedS3, bucket: 'any_bucket', key: 'some_path' })
+    AWS_S3_MOCK.on(PutObjectCommand).rejects({
+      message: mockedErrorMessage
+    })
+
+    const uploader = s3.createUploader({
+      s3: instantiateMockedS3Client(),
+      bucket: 'any_bucket',
+      key: 'some_path'
+    })
+
+    let errorFound: any
+
     try {
       await uploader('any_folder', 'any_zip')
     } catch (err) {
-      expect(err.message).toBe('s3 upload fails')
+      errorFound = err
     }
+
+    expect(errorFound).toBeDefined()
+    expect(errorFound.message).toBe(mockedErrorMessage)
   })
 
   it('should resolve when all data provided is correct and validate recursive folder provided from zip file', async () => {
-    const UPLOAD_BUFFER: any[] = []
-    AWS_MOCK.S3.mockImplementationOnce(() => ({
-      upload: jest.fn(({ Body, Bucket, Key }) => {
-        UPLOAD_BUFFER.push({ Body, Bucket, Key })
-        return { promise: jest.fn() }
-      })
+    const FILES_UPLOADED: any[] = []
 
-    }) as unknown as S3)
-    const mockedS3 = new AWS_MOCK.S3() as any
+    AWS_S3_MOCK.on(PutObjectCommand).callsFake((input) => {
+      FILES_UPLOADED.push(input)
+    })
 
     const tmpFolderProps = path.join(os.tmpdir(), 'valid-folder-')
     const tmpFolderPath = fs.mkdtempSync(tmpFolderProps)
 
     fs.mkdirSync(path.join(tmpFolderPath, 'folder_to_be_unzipped'))
 
-    fs.writeFileSync(path.join(tmpFolderPath, 'folder_to_be_unzipped', 'my_file.html'), '')
+    const tmpFilePath = path.join(tmpFolderPath, 'folder_to_be_unzipped', 'any_file.html')
 
-    jest.spyOn(fs, 'createReadStream').mockImplementation((path) => ({ path }) as unknown as fs.ReadStream)
+    fs.writeFileSync(tmpFilePath, '')
+
+    jest.spyOn(fs, 'createReadStream').mockImplementation((filePath) => mockReadStream(filePath))
 
     const bucket = 'any_bucket'
     const key = 'any_folder'
-    const uploader = await s3.createUploader({ s3: mockedS3, bucket, key })
+
+    const uploader = s3.createUploader({
+      s3: instantiateMockedS3Client(),
+      bucket,
+      key
+    })
 
     const zipName = 'any_zip'
     const createdS3Path = await uploader(tmpFolderPath, zipName)
 
     expect(createdS3Path).toBe(path.join(bucket, key, zipName))
-    expect(UPLOAD_BUFFER.length).toBe(1)
-    const [buffer] = UPLOAD_BUFFER
-    expect(buffer.Body.path).toBe(path.join(tmpFolderPath, 'folder_to_be_unzipped', 'my_file.html'))
+
+    expect(FILES_UPLOADED.length).toBe(1)
+    const [buffer] = FILES_UPLOADED
+
+    expect(buffer.Body.path).toBe(tmpFilePath)
 
     fs.rmdirSync(tmpFolderPath, { recursive: true })
   })
 
   it('should resolve when all data provided is correct', async () => {
-    AWS_MOCK.S3.mockImplementationOnce(() => ({
-      upload: jest.fn().mockReturnThis(),
-      promise: jest.fn()
-    }) as unknown as S3)
-    const mockedS3 = new AWS_MOCK.S3() as any
+    const mockedS3 = instantiateMockedS3Client()
 
     jest.spyOn(fs, 'opendirSync').mockImplementationOnce(() =>
-      [{ name: 'any_file.html', isDirectory: () => false },
-        { name: 'any_file.css', isDirectory: () => false }] as unknown as Dir)
+      [
+        { name: 'any_file.html', isDirectory: () => false },
+        { name: 'any_file.css', isDirectory: () => false }
+      ] as unknown as Dir
+    )
 
     jest.spyOn(path, 'join').mockImplementationOnce(() => 'any_valid_path/any_valid_file')
-    jest.spyOn(fs, 'createReadStream').mockImplementation(() => ({ insideReadStream: true }) as unknown as fs.ReadStream)
+    jest.spyOn(fs, 'createReadStream').mockImplementation((filePath) => mockReadStream(filePath))
 
     const bucket = 'any_bucket'
     const key = 'any_folder'
